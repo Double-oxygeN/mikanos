@@ -1,11 +1,21 @@
 {.pragma: efidecl, cdecl, exportc, codegenDecl: "$# EFIAPI $#$#".}
 
+import macros
+
 type
-  WideString {.importc: "CONST CHAR16 *", header: "<Uefi.h>".} = distinct ptr uint16
+  WideString {.importc: "CHAR16 *", header: "<Uefi.h>".} = distinct ptr uint16
 
-{.emit: "CONST CHAR16 *hello = u\"Hello, Mikan World!\\nNim Build Version\\n\";" .}
 
-let hello {.importc, nodecl.}: WideString
+macro fastwidestr(strlit: string{lit}): untyped =
+  let arr = nnkBracket.newNimNode()
+
+  for c in $strlit:
+    arr.add newLit(uint16(c))
+
+  arr.add newLit(0'u16)
+
+  result = quote do:
+    (var tmp = `arr`; addr tmp[0]).WideString
 
 
 type
@@ -20,5 +30,5 @@ proc print(format: WideString) {.importc: "Print", header: "<Library/UefiLib.h>"
 
 
 proc uefiMain(imageHandle: EfiHandle; systemTable: ptr EfiSystemTable): EfiStatus {.efidecl.} =
-  print(hello)
+  print fastwidestr"Hello, Mikan World!"
   while true: discard
