@@ -1,8 +1,5 @@
 import macros
-
-type
-  WideString* {.importc: "CHAR16 *", header: "<Uefi.h>".} = distinct ptr uint16
-
+import uefi
 
 proc print*(format: WideString) {.importc: "Print", header: "<Library/UefiLib.h>", varargs, cdecl.}
 
