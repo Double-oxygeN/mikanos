@@ -3,8 +3,9 @@ switch("nimcache", "c")
 
 switch("noMain")
 
-switch("os", "standalone")
-switch("exceptions", "setjmp")
+switch("os", "any")
+switch("d", "standaloneHeapSize=1048576")
+switch("gc", "orc")
 switch("d", "nimNoLibc")
 
 switch("checks", "off")
