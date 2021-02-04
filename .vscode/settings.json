@@ -1,0 +1,8 @@
+{
+  "files.associations": {
+    "*.re": "c",
+    "*.cats": "c",
+    "*.make": "makefile",
+    "stdio.h": "c"
+  }
+}
