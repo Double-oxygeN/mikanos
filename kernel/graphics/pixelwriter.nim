@@ -1,7 +1,9 @@
 import ../common/framebufferconfig
 
+export PixelColor
+
 type
-  PixelWriter* = object
+  PixelWriter* = ref object
     config: FrameBufferConfig
     writeMethod: (proc (config: FrameBufferConfig; position: int; c: PixelColor))
 
@@ -19,7 +21,8 @@ proc writeBGRResv8BitPerColor(config: FrameBufferConfig; position: int; c: Pixel
   config.frameBuffer[4 * position + 1] = c.g
   config.frameBuffer[4 * position + 2] = c.r
 
-proc createPixelWriter*(config: FrameBufferConfig): PixelWriter =
+proc newPixelWriter*(config: FrameBufferConfig): PixelWriter =
+  new result
   result.config = config
   result.writeMethod = case config.pixelFormat
     of pixelRGBResv8BitPerColor: writeRGBResv8BitPerColor
