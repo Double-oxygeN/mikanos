@@ -1,28 +1,16 @@
 import pixelwriter
 
-const kFontA = [
-  0b00000000'u8,
-  0b00011000'u8,
-  0b00011000'u8,
-  0b00011000'u8,
-  0b00011000'u8,
-  0b00100100'u8,
-  0b00100100'u8,
-  0b00100100'u8,
-  0b00100100'u8,
-  0b01111110'u8,
-  0b01000010'u8,
-  0b01000010'u8,
-  0b01000010'u8,
-  0b11100111'u8,
-  0b00000000'u8,
-  0b00000000'u8
-]
+proc createFont(bitmapFontFileName: string): array[char, array[0..15, uint8]] {.compileTime.} =
+  let bitmapFontFile = slurp(bitmapFontFileName)
+
+  for i, b in bitmapFontFile:
+    let ch = char(i div 16)
+    result[ch][i mod 16] = uint8(b)
+
+const fonts = createFont("../hankaku.bin")
 
 proc writeAscii*(writer: PixelWriter; x, y: int; c: char; color: PixelColor) =
-  if c != 'A': return
-
   for dy in 0..<16:
     for dx in 0..<8:
-      if ((kFontA[dy] shl dx) and 0x80'u8) > 0'u8:
+      if ((fonts[c][dy] shl dx) and 0x80'u8) > 0'u8:
         writer.write(x + dx, y + dy, color)

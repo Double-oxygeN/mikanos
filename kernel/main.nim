@@ -19,8 +19,9 @@ proc kernelMain(pconfig: ptr FrameBufferConfig) {.cdecl, exportc.} =
       pixelWriter.write(100 + x, 100 + y, green6)
 
   let gray9 = (0x21'u8, 0x25'u8, 0x29'u8)
-  pixelWriter.writeAscii(50, 50, 'A', gray9)
-  pixelWriter.writeAscii(58, 50, 'A', gray9)
+  for c in '!'..'~':
+    let i = int(c) - int('!')
+    pixelWriter.writeAscii(8 * i, 50, c, gray9)
 
   while true:
     asm "hlt"
