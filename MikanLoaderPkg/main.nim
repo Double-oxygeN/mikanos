@@ -10,6 +10,7 @@ import lib/[
   fileinfo,
   graphicsoutput
 ]
+import common/framebufferconfig
 
 proc halt =
   while true:
@@ -119,8 +120,24 @@ proc uefiMain(imageHandle: EfiHandle; systemTable: ptr EfiSystemTable): EfiStatu
   var
     frameBuffer = cast[ptr UncheckedArray[uint8]](gop.mode.frameBufferBase)
 
-  for i in 0..<gop.mode.frameBufferSize:
-    frameBuffer[int(i)] = 0xCC
+  var config = FrameBufferConfig(
+    frameBuffer: frameBuffer,
+    pixelsPerScanLine: gop.mode.info.pixelsPerScanLine,
+    horizontalResolution: gop.mode.info.horizontalResolution,
+    verticalResolution: gop.mode.info.verticalResolution)
+
+  case gop.mode.info.pixelFormat
+  of PixelRedGreenBlueReserved8BitPerColor:
+    config.pixelFormat = PixelFormat.pixelRGBResv8BitPerColor
+  of PixelBlueGreenRedReserved8BitPerColor:
+    config.pixelFormat = PixelFormat.pixelBGRResv8BitPerColor
+  else:
+    print fastwidestr("Unimplemented pixel format: %s\n"), $gop.mode.info.pixelFormat
+    halt()
+
+  for x in 0..<int(config.horizontalResolution):
+    for y in 0..<int(config.verticalResolution):
+      config.writePixel(x, y, (0x66'u8, 0xCC'u8, 0xFF'u8))
 
   # カーネルを読み込む
   var kernelFile: ptr EfiFileProtocol
@@ -170,7 +187,7 @@ proc uefiMain(imageHandle: EfiHandle; systemTable: ptr EfiSystemTable): EfiStatu
       print fastwidestr("Could not exit boot service: %r\n"), status
 
   # カーネルを呼ぶ
-  {.emit: ["typedef void EntryPointType(UINT64, UINT64); EntryPointType* entryPoint = (EntryPointType*)", entryAddr - 0x1_000, "; entryPoint(", gop.mode.frameBufferBase, ", ", gop.mode.frameBufferSize ,");"].}
+  {.emit: ["typedef void EntryPointType(const FrameBufferConfig *); EntryPointType* entryPoint = (EntryPointType*)", entryAddr - 0x1_000, "; entryPoint(", addr(config) ,");"].}
 
   print fastwidestr("All done\n")
 

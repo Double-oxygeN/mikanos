@@ -10,6 +10,8 @@
 
 [Sources]
   c/@mmain.nim.c
+  c/@mlib@sgraphicsoutput.nim.c
+  c/@m..@scommon@sframebufferconfig.nim.c
   c/stdlib_system.nim.c
 
 [Packages]
