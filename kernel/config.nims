@@ -4,7 +4,7 @@ switch("nimcache", "c")
 switch("noMain")
 
 switch("os", "any")
-switch("d", "standaloneHeapSize=1048576")
+switch("d", "standaloneHeapSize=33554432")
 switch("gc", "orc")
 # switch("d", "nimNoLibc")
 

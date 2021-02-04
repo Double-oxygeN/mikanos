@@ -97,11 +97,7 @@ proc uefiMain(imageHandle: EfiHandle; systemTable: ptr EfiSystemTable): EfiStatu
     frameBuffer = cast[ptr UncheckedArray[uint8]](gop.mode.frameBufferBase)
 
   for i in 0..<gop.mode.frameBufferSize:
-    frameBuffer[int(i)] = case int(i) mod 4
-      of 0: 0xFF'u8
-      of 1: 0xCC'u8
-      of 2: 0x66'u8
-      else: 0x00'u8
+    frameBuffer[int(i)] = 0xCC
 
   # カーネルを読み込む
   var kernelFile: ptr EfiFileProtocol
@@ -122,15 +118,26 @@ proc uefiMain(imageHandle: EfiHandle; systemTable: ptr EfiSystemTable): EfiStatu
   discard gBS[].allocatePages(AllocateAddress, EfiLoaderData, (kernelFileSize + 0xfff) div 0x1000, addr kernelBaseAddr)
   discard kernelFile[].read(kernelFile, addr kernelFileSize, cast[pointer](kernelBaseAddr))
 
-  print fastwidestr("Kernel: 0x%0lu (%lu bytes)\n"), kernelBaseAddr, kernelFileSize
+  print fastwidestr("Kernel: 0x%0lx (%lu bytes)\n"), kernelBaseAddr, kernelFileSize
+
+  var entryAddr = cast[ptr uint64](kernelBaseAddr + 24)[]
+  print fastwidestr("Kernel entry: 0x%0lx\n"), entryAddr
 
   # ブートローダーを閉じる
-  let status = gBS[].exitBootServices(imageHandle, memmap.mapKey)
+  var status = gBS[].exitBootServices(imageHandle, memmap.mapKey)
+  if efiError(status):
+    status = getMemoryMap(memmap)
+
+    if efiError(status):
+      print fastwidestr("failed to get memory map: %r\n"), status
+
+    status = gBS[].exitBootServices(imageHandle, memmap.mapKey)
+
+    if efiError(status):
+      print fastwidestr("Could not exit boot service: %r\n"), status
 
   # カーネルを呼ぶ
-  var entryAddr = cast[ptr uint64](kernelBaseAddr + 24)[]
-
-  {.emit: ["typedef void EntryPointType(void); EntryPointType* entryPoint = (EntryPointType*)", entryAddr, "; entryPoint();"].}
+  {.emit: ["typedef void EntryPointType(UINT64, UINT64); EntryPointType* entryPoint = (EntryPointType*)", entryAddr - 0x1_000, "; entryPoint(", gop.mode.frameBufferBase, ", ", gop.mode.frameBufferSize ,");"].}
 
   print fastwidestr("All done\n")
 

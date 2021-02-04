@@ -19,3 +19,5 @@ const
 const
   efiSuccess* = EfiStatus(0'u64)
   efiBufferTooSmall* = EfiStatus(5'u64)
+
+proc efiError*(status: EfiStatus): bool {.importc: "EFI_ERROR", header: "<Uefi.h>", nodecl.}
