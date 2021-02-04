@@ -1,5 +1,6 @@
 {.compile: "newlib_support.c".}
 
+import strformat
 import common/framebufferconfig
 import graphics/[pixelwriter, fonts]
 
@@ -22,6 +23,9 @@ proc kernelMain(pconfig: ptr FrameBufferConfig) {.cdecl, exportc.} =
   for c in '!'..'~':
     let i = int(c) - int('!')
     pixelWriter.writeAscii(8 * i, 50, c, gray9)
+
+  pixelWriter.writeString(0, 66, "Hello, world!", gray9)
+  pixelWriter.writeString(0, 82, fmt"1 + 2 = {1 + 2}", gray9)
 
   while true:
     asm "hlt"

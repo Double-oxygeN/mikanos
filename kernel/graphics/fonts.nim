@@ -14,3 +14,7 @@ proc writeAscii*(writer: PixelWriter; x, y: int; c: char; color: PixelColor) =
     for dx in 0..<8:
       if ((fonts[c][dy] shl dx) and 0x80'u8) > 0'u8:
         writer.write(x + dx, y + dy, color)
+
+proc writeString*(writer: PixelWriter; x, y: int; str: string; color: PixelColor) =
+  for i, c in str:
+    writer.writeAscii(x + 8 * i, y, c, color)
