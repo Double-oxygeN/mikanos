@@ -1,6 +1,15 @@
 {.pragma: efidecl, cdecl, exportc, codegenDecl: "$# EFIAPI $#$#".}
 
-import lib/[uefi, uefilib, uefibootservicestablelib, loadedimageprotocol, simplefilesystemprotocol, fileinfo]
+import lib/[
+  uefi,
+  uefilib,
+  uefibootservicestablelib,
+  memoryallocationlib,
+  loadedimageprotocol,
+  simplefilesystemprotocol,
+  fileinfo,
+  graphicsoutput
+]
 
 type
   MemoryMap = object
@@ -45,6 +54,28 @@ proc openRootDir(imageHandle: EfiHandle; root: var ptr EfiFileProtocol): EfiStat
 
   fs[].openVolume(fs, addr root)
 
+proc openGop(imageHandle: EfiHandle; gop: var ptr EfiGraphicsOutputProtocol): EfiStatus =
+  var
+    numGopHandles: culonglong = 0'u64
+    gopHandles: ptr EfiHandle = nil
+
+  discard gBS[].locateHandleBuffer(
+    ByProtocol,
+    addr gEfiGraphicsOutputProtocolGuid,
+    nil,
+    addr numGopHandles,
+    addr gopHandles)
+
+  discard gBS[].openProtocol(
+    gopHandles[],
+    addr gEfiGraphicsOutputProtocolGuid,
+    cast[ptr pointer](addr gop),
+    imageHandle,
+    EfiHandle(nil),
+    efiOpenProtocolByHandleProtocol)
+
+  freePool gopHandles
+
 
 proc uefiMain(imageHandle: EfiHandle; systemTable: ptr EfiSystemTable): EfiStatus {.efidecl.} =
   print fastwidestr("Hello, Mikan World!\n")
@@ -57,6 +88,20 @@ proc uefiMain(imageHandle: EfiHandle; systemTable: ptr EfiSystemTable): EfiStatu
 
   var rootDir: ptr EfiFileProtocol
   discard openRootDir(imageHandle, rootDir)
+
+  # GOP でピクセル描画
+  var gop: ptr EfiGraphicsOutputProtocol
+  discard openGop(imageHandle, gop)
+
+  var
+    frameBuffer = cast[ptr UncheckedArray[uint8]](gop.mode.frameBufferBase)
+
+  for i in 0..<gop.mode.frameBufferSize:
+    frameBuffer[int(i)] = case int(i) mod 4
+      of 0: 0xFF'u8
+      of 1: 0xCC'u8
+      of 2: 0x66'u8
+      else: 0x00'u8
 
   # カーネルを読み込む
   var kernelFile: ptr EfiFileProtocol
