@@ -12,14 +12,16 @@ proc write*(self: PixelWriter; x, y: int; c: PixelColor) =
   self.writeMethod(self.config, position, c)
 
 proc writeRGBResv8BitPerColor(config: FrameBufferConfig; position: int; c: PixelColor) =
-  config.frameBuffer[4 * position] = c.r
-  config.frameBuffer[4 * position + 1] = c.g
-  config.frameBuffer[4 * position + 2] = c.b
+  if not c.transparent:
+    config.frameBuffer[4 * position] = c.r
+    config.frameBuffer[4 * position + 1] = c.g
+    config.frameBuffer[4 * position + 2] = c.b
 
 proc writeBGRResv8BitPerColor(config: FrameBufferConfig; position: int; c: PixelColor) =
-  config.frameBuffer[4 * position] = c.b
-  config.frameBuffer[4 * position + 1] = c.g
-  config.frameBuffer[4 * position + 2] = c.r
+  if not c.transparent:
+    config.frameBuffer[4 * position] = c.b
+    config.frameBuffer[4 * position + 1] = c.g
+    config.frameBuffer[4 * position + 2] = c.r
 
 proc newPixelWriter*(config: FrameBufferConfig): PixelWriter =
   new result

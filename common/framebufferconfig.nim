@@ -11,9 +11,11 @@ type
 
   PixelColor* = tuple
     r, g, b: uint8
+    transparent: bool
 
 
 proc writePixel*(config: FrameBufferConfig; x, y: int; c: PixelColor) =
+  if c.transparent: return
   let pixelPosition = int(config.pixelsPerScanLine) * y + x
 
   case config.pixelFormat
