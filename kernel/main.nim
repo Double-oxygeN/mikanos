@@ -12,9 +12,9 @@ proc kernelMain(pconfig: ptr FrameBufferConfig) {.cdecl, exportc.} =
     pixelWriter = newPixelWriter(config)
     console = newConsole(pixelWriter, gray9, white)
 
-  for x in 0..<int(config.horizontalResolution):
-    for y in 0..<int(config.verticalResolution):
-      pixelWriter.write(x, y, white)
+  for y in low(backgroundImage)..high(backgroundImage):
+    for x in low(backgroundImage[y])..high(backgroundImage[y]):
+      pixelWriter.write(x, y, backgroundImage[y][x])
 
   for dy in low(mouseCursor)..high(mouseCursor):
     for dx in low(mouseCursor[dy])..high(mouseCursor[dy]):
