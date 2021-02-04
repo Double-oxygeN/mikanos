@@ -5,10 +5,12 @@ import lib/[
   uefilib,
   uefibootservicestablelib,
   memoryallocationlib,
+  basememorylib,
   loadedimageprotocol,
   simplefilesystemprotocol,
   fileinfo,
-  graphicsoutput
+  graphicsoutput,
+  elf
 ]
 import common/framebufferconfig
 
@@ -89,6 +91,27 @@ proc openGop(imageHandle: EfiHandle; gop: var ptr EfiGraphicsOutputProtocol): Ef
 
   freePool gopHandles
 
+proc calcLoadAddressRange(ehdr: ptr Elf64Ehdr): tuple[first, last: culonglong] =
+  let phdr = cast[ptr UncheckedArray[Elf64Phdr]](cast[uint64](ehdr) + ehdr.phoff)
+  result.first = high(uint64)
+  result.last = 0
+  for i in 0..<int(ehdr.phnum):
+    if phdr[i].`type` != ptLoad: continue
+    result.first = min(result.first, phdr[i].vaddr)
+    result.last = max(result.last, phdr[i].vaddr + phdr[i].memsz)
+
+proc copyLoadSegments(ehdr: ptr Elf64Ehdr) =
+  let phdr = cast[ptr UncheckedArray[Elf64Phdr]](cast[uint64](ehdr) + ehdr.phoff)
+
+  for i in 0..<int(ehdr.phnum):
+    if phdr[i].`type` != ptLoad: continue
+
+    var segmInFile = cast[uint64](ehdr) + phdr[i].offset
+    discard copyMem(cast[pointer](phdr[i].vaddr), cast[pointer](segmInFile), phdr[i].filesz)
+
+    let remainBytes = phdr[i].memsz - phdr[i].filesz
+    discard setMem(cast[pointer](phdr[i].vaddr + phdr[i].filesz), remainBytes, 0)
+
 
 proc uefiMain(imageHandle: EfiHandle; systemTable: ptr EfiSystemTable): EfiStatus {.efidecl.} =
   var status: EfiStatus
@@ -155,22 +178,38 @@ proc uefiMain(imageHandle: EfiHandle; systemTable: ptr EfiSystemTable): EfiStatu
     print fastwidestr("failed to get file information: %r\n"), status
 
   let fileInfo = cast[ptr EfiFileInfo](addr fileInfoBuffer[0])
-  var
-    kernelFileSize: culonglong = fileInfo.fileSize
+  var kernelFileSize: culonglong = fileInfo.fileSize
 
-    kernelBaseAddr: EfiPhysicalAddress = 0x10_0000'u64
-
-  status = gBS[].allocatePages(AllocateAddress, EfiLoaderData, (kernelFileSize + 0xfff) div 0x1000, addr kernelBaseAddr)
+  var kernelBuffer: pointer
+  status = gBS[].allocatePool(EfiLoaderData, kernelFileSize, addr kernelBuffer)
   if efiError(status):
-    print fastwidestr("failed to allocate pages: %r\n"), status
+    print fastwidestr("failed to allocate pool: %r\n"), status
+    halt()
 
-  status = kernelFile[].read(kernelFile, addr kernelFileSize, cast[pointer](kernelBaseAddr))
+  status = kernelFile[].read(kernelFile, addr kernelFileSize, kernelBuffer)
   if efiError(status):
     print fastwidestr("failed to read kernel file: %r\n"), status
 
-  print fastwidestr("Kernel: 0x%0lx (%lu bytes)\n"), kernelBaseAddr, kernelFileSize
+  var
+    kernelEhdr = cast[ptr Elf64Ehdr](kernelBuffer)
+    (kernelFirstAddr, kernelLastAddr) = calcLoadAddressRange(kernelEhdr)
+  let numPages: uint64 = (kernelLastAddr - kernelFirstAddr + 0xfff) div 0x1000
 
-  var entryAddr = cast[ptr uint64](kernelBaseAddr + 24)[]
+  status = gBS[].allocatePages(AllocateAddress, EfiLoaderData, numPages, addr kernelFirstAddr)
+  if efiError(status):
+    print fastwidestr("failed to allocate pages: %r\n"), status
+    print fastwidestr("F: 0x%0lx, L: 0x%0lx, N: %d\n"), kernelFirstAddr, kernelLastAddr, numPages
+    halt()
+
+  copyLoadSegments(kernelEhdr)
+  print fastwidestr("Kernel: 0x%0lx - 0x%0lx\n"), kernelFirstAddr, kernelLastAddr
+
+  status = gBS[].freePool(kernelBuffer)
+  if efiError(status):
+    print fastwidestr("failed to free pool: %r\n"), status
+    halt()
+
+  var entryAddr = cast[ptr uint64](kernelFirstAddr + 24)[]
   print fastwidestr("Kernel entry: 0x%0lx\n"), entryAddr
 
   # ブートローダーを閉じる
@@ -187,7 +226,7 @@ proc uefiMain(imageHandle: EfiHandle; systemTable: ptr EfiSystemTable): EfiStatu
       print fastwidestr("Could not exit boot service: %r\n"), status
 
   # カーネルを呼ぶ
-  {.emit: ["typedef void EntryPointType(const FrameBufferConfig *); EntryPointType* entryPoint = (EntryPointType*)", entryAddr - 0x1_000, "; entryPoint(", addr(config) ,");"].}
+  {.emit: ["typedef void EntryPointType(const FrameBufferConfig *); EntryPointType* entryPoint = (EntryPointType*)", entryAddr, "; entryPoint(", addr(config) ,");"].}
 
   print fastwidestr("All done\n")
 

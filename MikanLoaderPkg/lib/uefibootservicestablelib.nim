@@ -43,3 +43,5 @@ proc allocatePages*(self: EfiBootServices; `type`: EfiAllocateType; memoryType: 
 proc exitBootServices*(self: EfiBootServices; imageHandle: EfiHandle; mapkey: uint64): EfiStatus {.importcpp: "ExitBootServices".}
 proc getMemoryMap*(self: EfiBootServices; memoryMapSize: ptr uint64; memoryMap: ptr EfiMemoryDescriptor; mapKey, descriptorSize: ptr uint64; descriptorVersion: ptr uint32): EfiStatus {.importcpp: "GetMemoryMap".}
 proc locateHandleBuffer*(self: EfiBootServices; searchType: EfiLocateSearchType; protocol: ptr EfiGuid; searchKey: pointer; numOfHandles: ptr uint64; buffer: ptr ptr EfiHandle): EfiStatus {.importcpp: "LocateHandleBuffer".}
+proc allocatePool*(self: EfiBootServices; poolType: EfiMemoryType; size: uint64; buffer: ptr pointer): EfiStatus {.importcpp: "AllocatePool".}
+proc freePool*(self: EfiBootServices; buffer: pointer): EfiStatus {.importcpp: "FreePool".}
