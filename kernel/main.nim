@@ -21,7 +21,7 @@ proc kernelMain(pconfig: ptr FrameBufferConfig) {.cdecl, exportc.} =
 
   for dy in low(mouseCursor)..high(mouseCursor):
     for dx in low(mouseCursor[dy])..high(mouseCursor[dy]):
-      pixelWriter.write(200 + dx, 100 + dy, mouseCursor[dy][dx])
+      pixelWriter.write(450 + dx, 100 + dy, mouseCursor[dy][dx])
 
   let errScanAllBus = scanAllBus()
   console.putString &"ScanAllBus: {$errScanAllBus}\n"

@@ -160,7 +160,7 @@ proc uefiMain(imageHandle: EfiHandle; systemTable: ptr EfiSystemTable): EfiStatu
 
   for x in 0..<int(config.horizontalResolution):
     for y in 0..<int(config.verticalResolution):
-      config.writePixel(x, y, (0x66'u8, 0xCC'u8, 0xFF'u8))
+      config.writePixel(x, y, (0x66'u8, 0xCC'u8, 0xFF'u8, false))
 
   # カーネルを読み込む
   var kernelFile: ptr EfiFileProtocol
