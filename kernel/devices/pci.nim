@@ -5,11 +5,16 @@ const
   configData* = 0x0cfc'u16
 
 type
+  ClassCode* = object
+    base*, sub*, `interface`*: uint8
+    binary: uint32
+
   Device* = tuple
     bus: uint8
     device: range[0'u8..31'u8]
     function: range[0'u8..7'u8]
     headerType: uint8
+    classCode: ClassCode
 
 var
   devices*: array[32, Device]
@@ -34,6 +39,9 @@ proc readVendorId*(bus: uint8; device: range[0'u8..31'u8]; function: range[0'u8.
   writeAddress(makeAddress(bus, device, function, 0x00'u8))
   result = uint16(readData())
 
+proc readVendorId*(dev: Device): uint16 =
+  result = readVendorId(dev.bus, dev.device, dev.function)
+
 proc readDeviceId(bus: uint8; device: range[0'u8..31'u8]; function: range[0'u8..7'u8]): uint16 =
   writeAddress(makeAddress(bus, device, function, 0x00'u8))
   result = uint16(readData() shr 16)
@@ -42,9 +50,13 @@ proc readHeaderType(bus: uint8; device: range[0'u8..31'u8]; function: range[0'u8
   writeAddress(makeAddress(bus, device, function, 0x0c'u8))
   result = uint8(readData() shr 16)
 
-proc readClassCode*(bus: uint8; device: range[0'u8..31'u8]; function: range[0'u8..7'u8]): uint32 =
+proc readClassCode*(bus: uint8; device: range[0'u8..31'u8]; function: range[0'u8..7'u8]): ClassCode =
   writeAddress(makeAddress(bus, device, function, 0x08'u8))
-  result = readData()
+  let reg = readData()
+  result.base = uint8(reg shr 24)
+  result.sub = uint8(reg shr 16)
+  result.`interface` = uint8(reg shr 8)
+  result.binary = reg
 
 proc readBusNumbers(bus: uint8; device: range[0'u8..31'u8]; function: range[0'u8..7'u8]): uint32 =
   writeAddress(makeAddress(bus, device, function, 0x18'u8))
@@ -53,11 +65,23 @@ proc readBusNumbers(bus: uint8; device: range[0'u8..31'u8]; function: range[0'u8
 proc isSingleFunctionDevice(headerType: uint8): bool =
   result = (headerType and 0x80'u8) == 0'u8
 
-proc addDevice(bus: uint8; device: range[0'u8..31'u8]; function: range[0'u8..7'u8]; headerType: uint8): Error =
+proc `~=`*(classCode: ClassCode; base: uint8): bool =
+  result = classCode.base == base
+
+proc `~=`*(classCode: ClassCode; test: tuple[base, sub: uint8]): bool =
+  result = (classCode ~= test.base) and classCode.sub == test.sub
+
+proc `~=`*(classCode: ClassCode; test: tuple[base, sub, itf: uint8]): bool =
+  result = (classCode ~= (test.base, test.sub)) and classCode.`interface` == test.itf
+
+converter toU32*(classCode: ClassCode): uint32 =
+  classCode.binary
+
+proc addDevice(device: Device): Error =
   if numDevice == devices.len:
     return Error.full
 
-  devices[numDevice] = (bus, device, function, headerType)
+  devices[numDevice] = device
   inc numDevice
   return Error.success
 
@@ -66,18 +90,15 @@ proc scanBus(bus: uint8): Error
 proc scanFunction(bus: uint8; device: range[0'u8..31'u8]; function: range[0'u8..7'u8]): Error =
   result = Error.success
   let
+    classCode = readClassCode(bus, device, function)
     headerType = readHeaderType(bus, device, function)
-    err = addDevice(bus, device, function, headerType)
+    dev = (bus, device, function, headerType, classCode)
+    err = addDevice(dev)
 
   if err:
     return err
 
-  let
-    classCode = readClassCode(bus, device, function)
-    base = uint8(classCode shr 24)
-    sub = uint8(classCode shr 16)
-
-  if base == 0x06'u8 and sub == 0x04'u8:
+  if classCode ~= (0x06'u8, 0x04'u8):
     let
       busNumbers = readBusNumbers(bus, device, function)
       secondaryBus = uint8(busNumbers shr 8)
@@ -124,3 +145,24 @@ proc scanAllBus*: Error =
     let err = scanBus(function)
     if err:
       return err
+
+func calcBarAddress(barIndex: range[0'u8..5'u8]): uint8 =
+  0x10'u8 + (barIndex shl 2)
+
+proc readConfReg(dev: Device; regAddr: uint8): uint32 =
+  writeAddress(makeAddress(dev.bus, dev.device, dev.function, regAddr))
+  result = readData()
+
+proc readBar*(device: Device; barIndex: range[0'u8..5'u8]): tuple[bar: uint64, err: Error] =
+  let
+    address = calcBarAddress(barIndex)
+    bar = readConfReg(device, address)
+
+  if (bar and 4'u32) == 0'u32:
+    return (uint64(bar), Error.success)
+
+  if barIndex >= 5:
+    return (0'u64, Error.indexOutOfRange)
+
+  let barUpper = readConfReg(device, address + 4'u8)
+  return (uint64(bar) or (uint64(barUpper) shl 32), Error.success)
